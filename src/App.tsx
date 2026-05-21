@@ -6,7 +6,7 @@ import { Discover } from './components/Discover';
 import { MapTab } from './components/MapTab';
 import { Profile } from './components/Profile';
 import { CityChat } from './components/CityChat';
-import { supabase, isSupabaseConfigured } from './db';
+import { supabase, isSupabaseConfigured, updateLocation } from './db';
 
 export default function App() {
   const [user, setUser] = useState<MapUser | null>(null);
@@ -16,21 +16,40 @@ export default function App() {
   const [authError, setAuthError] = useState<string | null>(null);
 
   useEffect(() => {
-    console.log('App useEffect started');
+      console.log('App useEffect started');
     if (!isSupabaseConfigured) {
       console.log('Supabase not configured');
       setAuthError('Не вказані ключі доступу до Supabase. Додайте VITE_SUPABASE_URL та VITE_SUPABASE_ANON_KEY у змінні середовища.');
       setLoadingApp(false);
       return;
     }
+
+    let locationWatcher: number | null = null;
+
+    if (user?.uid && user?.isLocationVisible) {
+      if ('geolocation' in navigator) {
+        locationWatcher = navigator.geolocation.watchPosition(
+          (position) => {
+            const { latitude, longitude } = position.coords;
+            updateLocation(user.uid, latitude, longitude).catch(console.error);
+          },
+          (error) => {
+            console.error('Geolocation error:', error);
+          },
+          { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+        );
+      }
+    }
+
     const handleSession = async (sessionUser: any) => {
       console.log('handleSession called', sessionUser?.id || 'No user');
       try {
         if (sessionUser) {
           setAuthUid(sessionUser.id);
-          const { data, error } = await supabase.from('users').select('*').eq('uid', sessionUser.id).single();
-          if (error && error.code !== 'PGRST116') {
+          const { data, error } = await supabase.from('users').select('*').eq('uid', sessionUser.id).maybeSingle();
+          if (error) {
              console.error('Fetch user error', error);
+             throw error; // Throwing will trigger the catch block and show authError
           }
           if (data) {
             setUser(data as MapUser);
@@ -45,6 +64,8 @@ export default function App() {
         console.error('handleSession error', e);
         if (e.message?.includes('Failed to fetch')) {
           setAuthError(`Не вдалося з'єднатися (Failed to fetch). Перевірте CORS у Supabase або чи працює ваш проект.`);
+        } else if (e.code === 'PGRST204') {
+          setAuthError(`У вашій таблиці 'users' відсутні нові колонки (isLocationVisible та інші). Будь ласка, виконайте SQL-запит для оновлення структури бази.`);
         } else {
           setAuthError(`Помилка: ${e.message || 'Невідома помилка'}`);
         }
@@ -73,8 +94,13 @@ export default function App() {
       handleSession(session?.user);
     });
 
-    return () => subscription.unsubscribe();
-  }, []);
+    return () => {
+      subscription.unsubscribe();
+      if (locationWatcher !== null) {
+        navigator.geolocation.clearWatch(locationWatcher);
+      }
+    };
+  }, [user?.uid, user?.isLocationVisible]);
 
   const handleRegistrationComplete = async (profileData: Omit<UserProfile, 'uid'>) => {
     if (!authUid) return;
@@ -88,6 +114,11 @@ export default function App() {
         ...newUser,
         isOnline: true,
         createdAt: new Date().toISOString(),
+        isLocationVisible: false,
+        diamondCount: 0,
+        referralsShown: 0,
+        lat: 49.1287, // Kobelyaki default
+        lng: 34.1983
       };
       
       const { error } = await supabase.from('users').upsert(toSave);

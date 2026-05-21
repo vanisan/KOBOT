@@ -6,6 +6,11 @@ export interface UserProfile {
   bio: string;
   interests: string[];
   avatarColor: string;
+  createdAt?: any;
+  referralsShown?: number;
+  diamondCount?: number;
+  lastDiamondClaimAt?: string;
+  isLocationVisible?: boolean;
 }
 
 export interface MapUser extends UserProfile {
@@ -13,7 +18,6 @@ export interface MapUser extends UserProfile {
   lng?: number;
   isOnline?: boolean;
   updatedAt?: any; // Firestore Timestamp
-  createdAt?: any;
 }
 
 export interface CityChatMessage {

@@ -32,3 +32,34 @@ export async function logoutUser() {
   const { error } = await supabase.auth.signOut();
   if (error) throw error;
 }
+
+export async function updateLocation(uid: string, lat: number, lng: number) {
+  const { error } = await supabase
+    .from('users')
+    .update({ 
+      lat, 
+      lng, 
+      updatedAt: new Date().toISOString() 
+    })
+    .eq('uid', uid);
+  if (error) throw error;
+}
+
+export async function updateLocationVisibility(uid: string, isLocationVisible: boolean) {
+  const { error } = await supabase
+    .from('users')
+    .update({ isLocationVisible })
+    .eq('uid', uid);
+  if (error) throw error;
+}
+
+export async function claimDiamond(uid: string, currentDiamonds: number) {
+  const { error } = await supabase
+    .from('users')
+    .update({ 
+      diamondCount: (currentDiamonds || 0) + 1, 
+      lastDiamondClaimAt: new Date().toISOString() 
+    })
+    .eq('uid', uid);
+  if (error) throw error;
+}
