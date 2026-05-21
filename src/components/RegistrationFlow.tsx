@@ -65,7 +65,7 @@ export function RegistrationFlow({ onComplete, uid }: RegistrationFlowProps) {
       if (e.message?.includes('Failed to fetch')) {
         msg = "Не вдалося підключитися (Failed to fetch). Перевірте налаштування CORS та стан проекту в Supabase.";
       } else if (e.message?.includes('Invalid login format') || e.message?.includes('Invalid login credentials')) {
-        msg = 'Неправильний логін або пароль.';
+        msg = 'Неправильний логін/пароль. Також переконайтеся, що ви зареєстровані, і в Supabase (Authentication -> Providers -> Email) ВИМКНЕНО "Confirm email".';
       } else if (e.message?.includes('already registered')) {
         msg = 'Цей логін вже зайнятий.';
       } else {
