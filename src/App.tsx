@@ -6,7 +6,7 @@ import { Discover } from './components/Discover';
 import { MapTab } from './components/MapTab';
 import { Profile } from './components/Profile';
 import { CityChat } from './components/CityChat';
-import { supabase } from './db';
+import { supabase, isSupabaseConfigured } from './db';
 
 export default function App() {
   const [user, setUser] = useState<MapUser | null>(null);
@@ -16,6 +16,11 @@ export default function App() {
   const [authError, setAuthError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!isSupabaseConfigured) {
+      setAuthError('Не вказані ключі доступу до Supabase. Додайте VITE_SUPABASE_URL та VITE_SUPABASE_ANON_KEY у змінні середовища.');
+      setLoadingApp(false);
+      return;
+    }
     const handleSession = async (sessionUser: any) => {
       try {
         if (sessionUser) {
