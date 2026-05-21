@@ -4,8 +4,7 @@ import L from 'leaflet';
 import { CITY_CENTER } from '../data';
 import { MapUser, UserProfile } from '../types';
 import { MapPin } from 'lucide-react';
-import { db } from '../db';
-import { collection, onSnapshot, doc, updateDoc } from 'firebase/firestore';
+import { supabase } from '../db';
 import 'leaflet/dist/leaflet.css';
 
 interface MapTabProps {
@@ -60,18 +59,33 @@ export function MapTab({ currentUser }: MapTabProps) {
              lng: CITY_CENTER[1] + lngOffset,
            };
          };
-         updateDoc(doc(db, 'users', currentUser.uid), { ...randomizeLoc() }).catch(e => console.error(e));
+         supabase.from('users').update({ ...randomizeLoc() }).eq('uid', currentUser.uid).then(({error}) => {
+           if (error) console.error(error);
+         }).catch(console.error);
       }
     }
 
-    const unsub = onSnapshot(collection(db, 'users'), (snapshot) => {
-      const dbUsers: MapUser[] = [];
-      snapshot.forEach(d => {
-        dbUsers.push(d.data() as MapUser);
-      });
-      setUsers(dbUsers.filter(u => u.uid !== currentUser?.uid && u.lat && u.lng));
-    });
-    return unsub;
+    supabase.from('users').select('*').then(({ data, error }) => {
+      if (error) {
+        console.error("fetch users error", error);
+      } else if (data) {
+         setUsers((data as MapUser[]).filter(u => u.uid !== currentUser?.uid && u.lat && u.lng));
+      }
+    }).catch(console.error);
+
+    const channel = supabase
+      .channel('public:users')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'users' }, _payload => {
+        // Simple strategy: refetch all valid users on any change
+        supabase.from('users').select('*').then(({ data, error }) => {
+          if (!error && data) {
+             setUsers((data as MapUser[]).filter(u => u.uid !== currentUser?.uid && u.lat && u.lng));
+          }
+        }).catch(err => console.error("realtime fetch error", err));
+      })
+      .subscribe();
+      
+    return () => { supabase.removeChannel(channel); };
   }, [currentUser]);
 
   return (

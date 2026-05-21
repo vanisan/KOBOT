@@ -1,6 +1,5 @@
-import { useState, useEffect, useRef } from 'react';
-import { db } from '../db';
-import { collection, query, orderBy, limit, onSnapshot, addDoc, serverTimestamp } from 'firebase/firestore';
+import React, { useState, useEffect, useRef } from 'react';
+import { supabase } from '../db';
 import { MapUser, CityChatMessage } from '../types';
 import { Send, User } from 'lucide-react';
 
@@ -10,13 +9,28 @@ export function CityChat({ currentUser }: { currentUser: MapUser }) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const q = query(collection(db, 'cityChat'), orderBy('createdAt', 'asc'), limit(100));
-    const unsub = onSnapshot(q, (snapshot) => {
-      const msgs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CityChatMessage));
-      setMessages(msgs);
-      setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
-    });
-    return unsub;
+    supabase.from('city_chat')
+      .select('*')
+      .order('createdAt', { ascending: true })
+      .limit(100)
+      .then(({ data, error }) => {
+        if (!error && data) {
+           setMessages(data);
+           setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+        } else if (error) {
+           console.error("city_chat error", error);
+        }
+      }).catch(err => console.error("fetch city_chat failed", err));
+
+    const channel = supabase
+      .channel('public:city_chat')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'city_chat' }, payload => {
+        setMessages(prev => [...prev, payload.new as CityChatMessage]);
+        setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
   }, []);
 
   const handleSend = async (e: React.FormEvent) => {
@@ -28,12 +42,12 @@ export function CityChat({ currentUser }: { currentUser: MapUser }) {
       userId: currentUser.uid,
       codename: currentUser.codename,
       avatarColor: currentUser.avatarColor,
-      createdAt: serverTimestamp(),
+      createdAt: new Date().toISOString(),
     };
 
     setText('');
     try {
-      await addDoc(collection(db, 'cityChat'), payload);
+      await supabase.from('city_chat').insert([payload]);
     } catch (err) {
       console.error("Помилка відправки", err);
     }
@@ -49,10 +63,10 @@ export function CityChat({ currentUser }: { currentUser: MapUser }) {
       </div>
       
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {messages.map((msg) => {
+        {messages.map((msg, index) => {
           const isMe = msg.userId === currentUser.uid;
           return (
-            <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
+            <div key={msg.id || index} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
               <div className={`flex max-w-[80%] ${isMe ? 'flex-row-reverse' : 'flex-row'} items-end gap-2`}>
                 {!isMe && (
                   <div className={`w-8 h-8 rounded-full ${msg.avatarColor} flex-shrink-0 flex items-center justify-center`}>

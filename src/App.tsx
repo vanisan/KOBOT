@@ -1,8 +1,3 @@
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import { useState, useEffect } from 'react';
 import { UserProfile, MapUser } from './types';
 import { RegistrationFlow } from './components/RegistrationFlow';
@@ -11,8 +6,7 @@ import { Discover } from './components/Discover';
 import { MapTab } from './components/MapTab';
 import { Profile } from './components/Profile';
 import { CityChat } from './components/CityChat';
-import { db } from './db';
-import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { supabase } from './db';
 
 export default function App() {
   const [user, setUser] = useState<MapUser | null>(null);
@@ -22,86 +16,69 @@ export default function App() {
   const [authError, setAuthError] = useState<string | null>(null);
 
   useEffect(() => {
-    const initApp = async () => {
-      // Встановлюємо параметри Telegram Web App
-      const tg = (window as typeof window & { Telegram?: any }).Telegram?.WebApp;
-      let targetUserId = null;
-
-      if (tg) {
-        setTimeout(() => {
-          try {
-            tg.ready();
-            tg.expand(); // Розгортаємо на весь екран
-            tg.setHeaderColor('#000000'); 
-            tg.setBackgroundColor('#000000');
-          } catch (e) {
-            console.error('Telegram WebApp init error:', e);
-          }
-        }, 100);
-
-        const tgUser = tg.initDataUnsafe?.user;
-        if (tgUser?.id) {
-          targetUserId = tgUser.id.toString();
-        }
-      }
-
-      // Якщо відкрили в браузері (не в Telegram), генеруємо тимчасовий ID для тестування
-      if (!targetUserId) {
-        targetUserId = localStorage.getItem('local_anonym_id');
-        if (!targetUserId) {
-          targetUserId = 'local_' + Math.random().toString(36).substring(2, 11);
-          localStorage.setItem('local_anonym_id', targetUserId);
-        }
-      }
-
-      setAuthUid(targetUserId);
-
+    const handleSession = async (sessionUser: any) => {
       try {
-        const userDoc = await getDoc(doc(db, 'users', targetUserId));
-        if (userDoc.exists()) {
-          setUser(userDoc.data() as MapUser);
+        if (sessionUser) {
+          setAuthUid(sessionUser.id);
+          const { data, error } = await supabase.from('users').select('*').eq('uid', sessionUser.id).single();
+          if (data) {
+            setUser(data as MapUser);
+          } else {
+            setUser(null); // needs profile registration step
+          }
         } else {
-          setUser(null); // needs registration
+          setAuthUid(null);
+          setUser(null);
         }
       } catch (e: any) {
         console.error(e);
-        const code = e?.code || '';
-        if (code === 'auth/unauthorized-domain') {
-          setAuthError(
-            "Домен не авторизовано у Firebase! " +
-            "Перейдіть до Firebase Console -> Authentication -> Settings -> Authorized domains " +
-            "та додайте домен Vercel."
-          );
+        if (e.message?.includes('Failed to fetch')) {
+          setAuthError(`Не вдалося з'єднатися (Failed to fetch). Перевірте CORS у Supabase або чи працює ваш проект.`);
         } else {
-           setAuthError(`Помилка Firestore: ${e.message || 'Невідома помилка'}`);
+          setAuthError(`Помилка: ${e.message || 'Невідома помилка'}`);
         }
       } finally {
         setLoadingApp(false);
       }
     };
 
-    initApp();
+    supabase.auth.getSession().then(({ data: { session }, error }) => {
+      if (error) {
+        setAuthError(`Помилка: ${error.message}`);
+        setLoadingApp(false);
+      } else {
+        handleSession(session?.user);
+      }
+    }).catch((e: any) => {
+      console.error("fetch session error", e);
+      setAuthError(`Не вдалося з'єднатися з Supabase (Failed to fetch). Переконайтеся, що ваш проект не призупинено, і URL Preview додано до CORS / Site URL налаштувань у Supabase.`);
+      setLoadingApp(false);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      handleSession(session?.user);
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
   const handleRegistrationComplete = async (profileData: Omit<UserProfile, 'uid'>) => {
     if (!authUid) return;
     try {
-      const tgUser = (window as any).Telegram?.WebApp?.initDataUnsafe?.user;
-      const targetUserId = tgUser?.id ? tgUser.id.toString() : authUid;
-
       const newUser: UserProfile = {
-        uid: targetUserId,
-        telegramId: tgUser?.id ? tgUser.id.toString() : undefined,
+        uid: authUid,
         ...profileData,
       };
       
       const toSave = {
         ...newUser,
         isOnline: true,
-        createdAt: serverTimestamp(),
+        createdAt: new Date().toISOString(),
       };
       
-      await setDoc(doc(db, 'users', targetUserId), toSave);
+      const { error } = await supabase.from('users').upsert(toSave);
+      if (error) throw error;
+      
       setUser(toSave as MapUser);
     } catch (e) {
       console.error(e);

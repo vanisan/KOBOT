@@ -2,26 +2,45 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { User, Heart, X, MapPin } from 'lucide-react';
 import { MapUser } from '../types';
-import { db, auth } from '../db';
-import { collection, onSnapshot } from 'firebase/firestore';
+import { supabase } from '../db';
 
 export function Discover() {
   const [users, setUsers] = useState<MapUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [liked, setLiked] = useState<string[]>([]);
+  const [currentUid, setCurrentUid] = useState<string | null>(null);
   
   useEffect(() => {
-    const unsub = onSnapshot(collection(db, 'users'), (snapshot) => {
-      const dbUsers: MapUser[] = [];
-      snapshot.forEach(d => {
-        dbUsers.push(d.data() as MapUser);
-      });
-      // Filter out self
-      const others = dbUsers.filter(u => u.uid !== auth.currentUser?.uid);
-      setUsers(others);
-      setLoading(false);
-    });
-    return unsub;
+    const fetchUsers = async () => {
+      try {
+        const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+        if (sessionError) throw sessionError;
+        const uid = sessionData?.session?.user?.id;
+        setCurrentUid(uid || null);
+
+        const { data, error } = await supabase.from('users').select('*');
+        if (error) throw error;
+        if (data) {
+          setUsers(data.filter(u => u.uid !== uid) as MapUser[]);
+        }
+      } catch (err) {
+        console.error("fetchUsers error", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchUsers();
+
+    const channel = supabase.channel('users_discover_changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'users' }, () => {
+        fetchUsers();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const currentUser = users.length > 0 ? users[0] : null;

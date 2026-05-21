@@ -14,8 +14,8 @@ service cloud.firestore {
     
     function incoming() { return request.resource.data; }
     function existing() { return resource.data; }
-    // Since Firebase Auth is restricted, we're relying purely on Telegram's implicit ID
-    function isSignedIn() { return true; }
+    
+    function isSignedIn() { return request.auth != null; }
     
     // User validation blueprint
     function isValidUser(data) {
