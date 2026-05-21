@@ -1,0 +1,46 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "A user profile in the anonymous network",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "The firebase auth uid" },
+        "codename": { "type": "string" },
+        "age": { "type": "number" },
+        "bio": { "type": "string" },
+        "interests": { "type": "array", "items": { "type": "string" } },
+        "avatarColor": { "type": "string" },
+        "lat": { "type": "number" },
+        "lng": { "type": "number" },
+        "isOnline": { "type": "boolean" },
+        "updatedAt": { "type": "timestamp" },
+        "createdAt": { "type": "timestamp" }
+      },
+      "required": ["uid", "codename", "age", "bio", "avatarColor"]
+    },
+    "CityChatMessage": {
+      "title": "CityChatMessage",
+      "description": "A message in the global city chat",
+      "type": "object",
+      "properties": {
+        "text": { "type": "string" },
+        "userId": { "type": "string" },
+        "codename": { "type": "string" },
+        "avatarColor": { "type": "string" },
+        "createdAt": { "type": "timestamp" }
+      },
+      "required": ["text", "userId", "codename", "avatarColor", "createdAt"]
+    }
+  },
+  "firestore": {
+    "users/{userId}": {
+      "schema": "User",
+      "description": "Stores user profiles and location."
+    },
+    "cityChat/{messageId}": {
+      "schema": "CityChatMessage",
+      "description": "Stores messages for the city chat."
+    }
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "name": "Анонимная Сеть Кобеляки",
+  "description": "Анонимная сеть для знакомств в городе Кобеляки, стилизованная под Telegram Mini App.",
+  "requestFramePermissions": [
+    "geolocation"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

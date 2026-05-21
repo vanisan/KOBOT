@@ -1,0 +1,71 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 1. Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Phase 3: Primitive Definition
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+    
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+    function isSignedIn() { return request.auth != null && request.auth.token.email_verified == true; }
+    
+    // User validation blueprint
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'codename', 'age', 'bio', 'avatarColor'])
+          && data.uid == request.auth.uid
+          && data.codename is string && data.codename.size() > 0 && data.codename.size() <= 32
+          && data.age is number && data.age >= 18 && data.age <= 120
+          && data.bio is string && data.bio.size() <= 500
+          && data.avatarColor is string && data.avatarColor.size() <= 50
+          && (!('interests' in data) || (data.interests is list && data.interests.size() <= 20))
+          && (!('lat' in data) || data.lat is number)
+          && (!('lng' in data) || data.lng is number)
+          && (!('isOnline' in data) || data.isOnline is bool)
+          && (!('updatedAt' in data) || data.updatedAt == request.time)
+          && (!('createdAt' in data) || data.createdAt == request.time);
+    }
+
+    match /users/{userId} {
+      allow read: if isSignedIn(); // It's a public dating profile in the app
+      allow create: if isSignedIn()
+                    && isValidId(userId)
+                    && userId == request.auth.uid
+                    && isValidUser(incoming())
+                    && incoming().createdAt == request.time;
+                    
+      allow update: if isSignedIn()
+                    && isValidId(userId)
+                    && userId == request.auth.uid
+                    && isValidUser(incoming())
+                    && incoming().uid == existing().uid
+                    && ('createdAt' in existing() ? (incoming().createdAt == existing().createdAt) : true); // Immutable createdAt
+    }
+
+    // Chat Message Validation Blueprint
+    function isValidCityChatMessage(data) {
+      return data.keys().hasAll(['text', 'userId', 'codename', 'avatarColor', 'createdAt'])
+          && data.keys().size() == 5
+          && data.text is string && data.text.size() > 0 && data.text.size() <= 1000
+          && data.userId == request.auth.uid
+          && data.codename is string && data.codename.size() <= 32
+          && data.avatarColor is string && data.avatarColor.size() <= 50
+          && data.createdAt == request.time;
+    }
+
+    match /cityChat/{messageId} {
+      // Allow read everyone who is signed in
+      allow read: if isSignedIn();
+      allow create: if isSignedIn()
+                    && isValidId(messageId)
+                    && isValidCityChatMessage(incoming());
+                    // we don't allow updates or deletes to history for simplicity for now
+    }
+  }
+}
