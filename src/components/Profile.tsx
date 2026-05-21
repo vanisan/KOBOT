@@ -1,23 +1,17 @@
 import { UserProfile } from '../types';
-import { User, Settings, Edit3, LogOut } from 'lucide-react';
-import { auth } from '../db';
-import { signOut } from 'firebase/auth';
+import { User, Settings, Edit3 } from 'lucide-react';
 
 interface ProfileProps {
   user: UserProfile;
 }
 
 export function Profile({ user }: ProfileProps) {
-  const handleLogout = () => {
-    signOut(auth);
-  };
-
   return (
     <div className="h-[calc(100vh-64px)] overflow-y-auto bg-black p-6">
       <div className="flex justify-between items-start mb-8">
         <h1 className="text-2xl font-bold tracking-tight">Ваш профіль</h1>
-        <button onClick={handleLogout} className="w-10 h-10 rounded-full bg-neutral-900 border border-neutral-800 flex items-center justify-center text-neutral-400 hover:text-rose-500 transition-colors">
-          <LogOut size={20} />
+        <button className="w-10 h-10 rounded-full bg-neutral-900 border border-neutral-800 flex items-center justify-center text-neutral-400 hover:text-white transition-colors">
+          <Settings size={20} />
         </button>
       </div>
 

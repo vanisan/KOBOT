@@ -1,5 +1,6 @@
 export interface UserProfile {
   uid: string;
+  telegramId?: string;
   codename: string;
   age: number;
   bio: string;

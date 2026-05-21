@@ -1,9 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { UserProfile } from '../types';
-import { MapPin, User, ChevronRight } from 'lucide-react';
-import { loginWithGoogle, loginAnonymous } from '../db';
-import { auth, db } from '../db';
+import { User, ChevronRight } from 'lucide-react';
 
 interface RegistrationFlowProps {
   onComplete: (profile: Omit<UserProfile, 'uid'>) => void;
@@ -16,58 +14,21 @@ const colors = [
 ];
 
 export function RegistrationFlow({ onComplete, uid }: RegistrationFlowProps) {
-  const [step, setStep] = useState(uid ? 2 : 1);
+  const tgUser = (window as any).Telegram?.WebApp?.initDataUnsafe?.user;
+  
+  const [step, setStep] = useState(1);
   const [profile, setProfile] = useState<Partial<UserProfile>>({
-    codename: '',
+    codename: tgUser?.first_name || '',
     age: 18,
     bio: '',
     interests: [],
     avatarColor: 'bg-indigo-500',
   });
-  const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    if (uid && step === 1) {
-      setStep(2);
-      setLoading(false);
-    }
-  }, [uid, step]);
-
-  useEffect(() => {
-    const tg = (window as any).Telegram?.WebApp;
-    if (tg) {
-      tg.ready();
-      const tgUser = tg.initDataUnsafe?.user;
-      if (tgUser?.first_name && !profile.codename) {
-        setProfile(p => ({ ...p, codename: tgUser.first_name || '' }));
-      }
-    }
-  }, []);
-
-  const handleGoogleLogin = async () => {
-    setLoading(true);
-    try {
-      await loginWithGoogle();
-    } catch (e) {
-      console.error(e);
-      setLoading(false);
-    }
-  };
-
-  const handleTelegramLogin = async () => {
-    setLoading(true);
-    try {
-      await loginAnonymous();
-    } catch (e) {
-      console.error(e);
-      setLoading(false);
-    }
-  };
-
+  
   const handleNext = async () => {
-    if (step === 2) {
-      setStep(3);
-    } else if (step === 3) {
+    if (step === 1) {
+      setStep(2);
+    } else {
       onComplete(profile as Omit<UserProfile, 'uid'>);
     }
   };
@@ -82,41 +43,10 @@ export function RegistrationFlow({ onComplete, uid }: RegistrationFlowProps) {
         className="flex-1 flex flex-col justify-center"
       >
         <div className="mb-8 text-center text-neutral-400 text-sm">
-          {step === 1 ? 'Авторизація' : `Крок ${step - 1} з 2`}
+          Крок {step} з 2
         </div>
 
         {step === 1 && (
-          <div className="space-y-6">
-            <div className="flex justify-center mb-6">
-              <div className="w-20 h-20 bg-indigo-500/20 rounded-full flex items-center justify-center">
-                <MapPin className="text-indigo-500" size={32} />
-              </div>
-            </div>
-            <h1 className="text-3xl font-bold text-center tracking-tight">Anonym KBL</h1>
-            <p className="text-neutral-400 text-center leading-relaxed">
-              Анонімна мережа знайомств у Кобеляках. Ніхто не дізнається, хто ви, поки ви самі не розкажете.
-            </p>
-
-            <div className="space-y-4 pt-8">
-              <button 
-                onClick={handleTelegramLogin}
-                disabled={loading}
-                className="w-full bg-[#2AABEE] hover:bg-[#229ED9] disabled:bg-neutral-800 disabled:text-neutral-500 text-white font-medium py-4 rounded-2xl flex items-center justify-center transition-colors shadow-lg"
-              >
-                {loading ? 'Завантаження...' : 'Увійти через Telegram'}
-              </button>
-              <button 
-                onClick={handleGoogleLogin}
-                disabled={loading}
-                className="w-full bg-neutral-800 hover:bg-neutral-700 disabled:bg-neutral-800 disabled:text-neutral-500 text-white font-medium py-4 rounded-2xl flex items-center justify-center transition-colors"
-              >
-                Увійти через Google
-              </button>
-            </div>
-          </div>
-        )}
-
-        {step === 2 && (
           <div className="space-y-6">
             <h2 className="text-2xl font-bold mb-8">Створення образу</h2>
             
@@ -143,7 +73,7 @@ export function RegistrationFlow({ onComplete, uid }: RegistrationFlowProps) {
           </div>
         )}
 
-        {step === 3 && (
+        {step === 2 && (
           <div className="space-y-6">
             <h2 className="text-2xl font-bold mb-8">Деталі профілю</h2>
             
@@ -183,16 +113,14 @@ export function RegistrationFlow({ onComplete, uid }: RegistrationFlowProps) {
           </div>
         )}
 
-        {step !== 1 && (
-          <button 
-            onClick={handleNext}
-            disabled={(step === 2 && !profile.codename?.trim()) || loading}
-            className="mt-12 w-full bg-indigo-600 hover:bg-indigo-500 disabled:bg-neutral-800 disabled:text-neutral-500 text-white font-medium py-4 rounded-2xl flex items-center justify-center transition-colors shadow-lg shadow-indigo-600/20"
-          >
-            {loading ? 'Завантаження...' : step === 3 ? 'Почати знайомства' : 'Далі'}
-            {!loading && step !== 3 && <ChevronRight size={20} className="ml-1" />}
-          </button>
-        )}
+        <button 
+          onClick={handleNext}
+          disabled={(step === 1 && !profile.codename?.trim())}
+          className="mt-12 w-full bg-indigo-600 hover:bg-indigo-500 disabled:bg-neutral-800 disabled:text-neutral-500 text-white font-medium py-4 rounded-2xl flex items-center justify-center transition-colors shadow-lg shadow-indigo-600/20"
+        >
+          {step === 2 ? 'Почати знайомства' : 'Далі'}
+          {step !== 2 && <ChevronRight size={20} className="ml-1" />}
+        </button>
       </motion.div>
     </div>
   );
