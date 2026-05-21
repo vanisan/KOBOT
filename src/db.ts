@@ -1,14 +1,14 @@
 import { createClient } from '@supabase/supabase-js';
 
-const providedUrl = import.meta.env.VITE_SUPABASE_URL;
-const providedKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const providedUrl = import.meta.env.VITE_SUPABASE_URL || 'https://usrbqeomlzvaqgmaqaoof.supabase.co';
+const providedKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVzcmJxZW9tbHp2YXFnbWFxYW9mIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkzMjIxNjIsImV4cCI6MjA5NDg5ODE2Mn0.tmveqlUHBV5bFiu-SwyM_BOVa0fv-toL8YJ1X5pRj9g';
 
 console.log('Supabase Config:', { url: providedUrl ? 'Provided' : 'Empty', key: providedKey ? 'Provided' : 'Empty' });
 
 export const isSupabaseConfigured = Boolean(providedUrl && providedKey);
 
-const supabaseUrl = providedUrl || 'https://placeholder.supabase.co';
-const supabaseAnonKey = providedKey || 'placeholder_key';
+const supabaseUrl = providedUrl;
+const supabaseAnonKey = providedKey;
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
