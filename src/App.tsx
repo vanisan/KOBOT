@@ -16,29 +16,12 @@ export default function App() {
   const [authError, setAuthError] = useState<string | null>(null);
 
   useEffect(() => {
-      console.log('App useEffect started');
+    console.log('App useEffect started');
     if (!isSupabaseConfigured) {
       console.log('Supabase not configured');
       setAuthError('Не вказані ключі доступу до Supabase. Додайте VITE_SUPABASE_URL та VITE_SUPABASE_ANON_KEY у змінні середовища.');
       setLoadingApp(false);
       return;
-    }
-
-    let locationWatcher: number | null = null;
-
-    if (user?.uid && user?.isLocationVisible) {
-      if ('geolocation' in navigator) {
-        locationWatcher = navigator.geolocation.watchPosition(
-          (position) => {
-            const { latitude, longitude } = position.coords;
-            updateLocation(user.uid, latitude, longitude).catch(console.error);
-          },
-          (error) => {
-            console.error('Geolocation error:', error);
-          },
-          { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
-        );
-      }
     }
 
     const handleSession = async (sessionUser: any) => {
@@ -49,7 +32,7 @@ export default function App() {
           const { data, error } = await supabase.from('users').select('*').eq('uid', sessionUser.id).maybeSingle();
           if (error) {
              console.error('Fetch user error', error);
-             throw error; // Throwing will trigger the catch block and show authError
+             throw error; 
           }
           if (data) {
             setUser(data as MapUser);
@@ -64,8 +47,8 @@ export default function App() {
         console.error('handleSession error', e);
         if (e.message?.includes('Failed to fetch')) {
           setAuthError(`Не вдалося з'єднатися (Failed to fetch). Перевірте CORS у Supabase або чи працює ваш проект.`);
-        } else if (e.code === 'PGRST204' || e.message?.includes('isLocationVisible')) {
-          setAuthError(`У вашій таблиці 'users' відсутні необхідні колонки. Будь ласка, перейдіть у SQL Editor у Supabase та виконайте цей запит:\n\nALTER TABLE users ADD COLUMN "isLocationVisible" boolean DEFAULT false, ADD COLUMN "diamondCount" int DEFAULT 0, ADD COLUMN "referralsShown" int DEFAULT 0, ADD COLUMN "lastDiamondClaimAt" text, ADD COLUMN "lat" float, ADD COLUMN "lng" float;`);
+        } else if (e.code === 'PGRST204' || e.message?.includes('isLocationVisible') || e.message?.includes('receivedLikes') || e.message?.includes('avatarUrl')) {
+          setAuthError(`У вашій таблиці 'users' відсутні необхідні колонки або не оновлено кеш. Перейдіть у SQL Editor у Supabase та виконайте:\n\nALTER TABLE users ADD COLUMN IF NOT EXISTS "receivedLikes" int DEFAULT 0, ADD COLUMN IF NOT EXISTS "availableLikesToGive" int DEFAULT 0, ADD COLUMN IF NOT EXISTS "lastLikeClaimAt" text, ADD COLUMN IF NOT EXISTS "lastNameChangeAt" text, ADD COLUMN IF NOT EXISTS "avatarUrl" text, ADD COLUMN IF NOT EXISTS "referralsCount" int DEFAULT 0, ADD COLUMN IF NOT EXISTS "isLocationVisible" boolean DEFAULT false, ADD COLUMN IF NOT EXISTS "lat" float, ADD COLUMN IF NOT EXISTS "lng" float;\n\nNOTIFY pgrst, 'reload schema';`);
         } else {
           setAuthError(`Помилка: ${e.message || 'Невідома помилка'}`);
         }
@@ -77,7 +60,6 @@ export default function App() {
 
     console.log('Checking session...');
     supabase.auth.getSession().then(({ data: { session }, error }) => {
-      console.log('getSession result', { hasSession: !!session, error });
       if (error) {
         setAuthError(`Помилка: ${error.message}`);
         setLoadingApp(false);
@@ -86,7 +68,7 @@ export default function App() {
       }
     }).catch((e: any) => {
       console.error("fetch session error", e);
-      setAuthError(`Не вдалося з'єднатися з Supabase (Failed to fetch). Переконайтеся, що ваш проект не призупинено, і URL Preview додано до CORS / Site URL налаштувань у Supabase.`);
+      setAuthError(`Не вдалося з'єднатися з Supabase (Failed to fetch).`);
       setLoadingApp(false);
     });
 
@@ -96,6 +78,28 @@ export default function App() {
 
     return () => {
       subscription.unsubscribe();
+    };
+  }, []);
+
+  useEffect(() => {
+    let locationWatcher: number | null = null;
+    if (user?.uid && user?.isLocationVisible) {
+      if ('geolocation' in navigator) {
+        locationWatcher = navigator.geolocation.watchPosition(
+          (position) => {
+            const { latitude, longitude } = position.coords;
+            updateLocation(user.uid, latitude, longitude).catch(err => {
+              // ignore
+            });
+          },
+          (error) => {
+            // ignore
+          },
+          { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+        );
+      }
+    }
+    return () => {
       if (locationWatcher !== null) {
         navigator.geolocation.clearWatch(locationWatcher);
       }
@@ -115,8 +119,9 @@ export default function App() {
         isOnline: true,
         createdAt: new Date().toISOString(),
         isLocationVisible: false,
-        diamondCount: 0,
-        referralsShown: 0,
+        receivedLikes: 0,
+        availableLikesToGive: 0,
+        referralsCount: 0,
         lat: 49.1287, // Kobelyaki default
         lng: 34.1983
       };

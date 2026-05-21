@@ -53,13 +53,39 @@ export async function updateLocationVisibility(uid: string, isLocationVisible: b
   if (error) throw error;
 }
 
-export async function claimDiamond(uid: string, currentDiamonds: number) {
+export async function claimDailyLike(uid: string, currentAvailableLikes: number) {
   const { error } = await supabase
     .from('users')
     .update({ 
-      diamondCount: (currentDiamonds || 0) + 1, 
-      lastDiamondClaimAt: new Date().toISOString() 
+      availableLikesToGive: (currentAvailableLikes || 0) + 1, 
+      lastLikeClaimAt: new Date().toISOString() 
     })
+    .eq('uid', uid);
+  if (error) throw error;
+}
+
+export async function giveLike(senderUid: string, receiverUid: string, senderAvailableLikes: number, receiverReceivedLikes: number) {
+  const { error: err1 } = await supabase.from('users').update({ availableLikesToGive: senderAvailableLikes - 1 }).eq('uid', senderUid);
+  if (err1) throw err1;
+  const { error: err2 } = await supabase.from('users').update({ receivedLikes: (receiverReceivedLikes || 0) + 1 }).eq('uid', receiverUid);
+  if (err2) throw err2;
+}
+
+export async function updateName(uid: string, codename: string) {
+  const { error } = await supabase
+    .from('users')
+    .update({ 
+      codename,
+      lastNameChangeAt: new Date().toISOString()
+    })
+    .eq('uid', uid);
+  if (error) throw error;
+}
+
+export async function updateAvatar(uid: string, avatarUrl: string) {
+  const { error } = await supabase
+    .from('users')
+    .update({ avatarUrl })
     .eq('uid', uid);
   if (error) throw error;
 }

@@ -3,8 +3,8 @@ import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import L from 'leaflet';
 import { CITY_CENTER } from '../data';
 import { MapUser, UserProfile } from '../types';
-import { MapPin } from 'lucide-react';
-import { supabase } from '../db';
+import { MapPin, Heart, Loader2 } from 'lucide-react';
+import { supabase, giveLike } from '../db';
 import 'leaflet/dist/leaflet.css';
 
 interface MapTabProps {
@@ -20,13 +20,18 @@ L.Icon.Default.mergeOptions({
 });
 
 // Custom marker for anonymous users
-const createCustomIcon = (colorClass: string) => {
+const createCustomIcon = (user: MapUser) => {
   let markerColor = '#6366f1'; // indigo-500 default
+  const colorClass = user.avatarColor || 'bg-indigo-500';
   if (colorClass.includes('rose')) markerColor = '#f43f5e';
   if (colorClass.includes('emerald')) markerColor = '#10b981';
   if (colorClass.includes('purple')) markerColor = '#a855f7';
   if (colorClass.includes('amber')) markerColor = '#f59e0b';
   if (colorClass.includes('slate')) markerColor = '#334155';
+
+  const avatarContent = user.avatarUrl 
+    ? `<img src="${user.avatarUrl}" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;" />`
+    : '';
 
   return L.divIcon({
     className: 'custom-leaflet-icon',
@@ -37,7 +42,8 @@ const createCustomIcon = (colorClass: string) => {
       border-radius: 50%;
       border: 3px solid #171717;
       box-shadow: 0 0 10px rgba(0,0,0,0.5);
-    "></div>`,
+      overflow: hidden;
+    ">${avatarContent}</div>`,
     iconSize: [24, 24],
     iconAnchor: [12, 12],
   });
@@ -45,6 +51,7 @@ const createCustomIcon = (colorClass: string) => {
 
 export function MapTab({ currentUser }: MapTabProps) {
   const [users, setUsers] = useState<MapUser[]>([]);
+  const [loadingLikeFor, setLoadingLikeFor] = useState<string | null>(null);
 
   useEffect(() => {
     // We update my location to match a random point around city center
@@ -88,12 +95,36 @@ export function MapTab({ currentUser }: MapTabProps) {
     return () => { supabase.removeChannel(channel); };
   }, [currentUser]);
 
+  const handleSendLike = async (receiverId: string, receiverLikes: number) => {
+    if (!currentUser) return;
+    if ((currentUser.availableLikesToGive || 0) <= 0) {
+      alert("У вас немає доступних лайків. Отримайте їх у своєму профілі!");
+      return;
+    }
+    
+    setLoadingLikeFor(receiverId);
+    try {
+      await giveLike(currentUser.uid, receiverId, currentUser.availableLikesToGive || 0, receiverLikes);
+      alert("Лайк відправлено!");
+      window.location.reload();
+    } catch(e: any) {
+       console.error(e);
+       if (e?.code === 'PGRST204') {
+         alert('Помилка: Необхідно оновити структуру бази даних. Перезавантажте сторінку.');
+       } else {
+         alert("Помилка відправки лайку");
+       }
+    } finally {
+      setLoadingLikeFor(null);
+    }
+  };
+
   return (
     <div className="h-[calc(100vh-64px)] relative w-full bg-neutral-900">
       <div className="absolute top-4 left-4 right-4 z-[400] bg-black/60 backdrop-blur-md px-4 py-3 rounded-2xl border border-neutral-800 shadow-xl flex items-center justify-between">
         <div>
           <h3 className="text-sm font-bold text-white">Кобеляки</h3>
-          <p className="text-xs text-neutral-400 font-medium">{users.length} анонімів поруч</p>
+          <p className="text-xs text-neutral-400 font-medium">{users.length} активних поруч</p>
         </div>
         <div className="w-10 h-10 rounded-full bg-neutral-800 flex items-center justify-center">
           <MapPin size={18} className="text-indigo-400" />
@@ -117,15 +148,39 @@ export function MapTab({ currentUser }: MapTabProps) {
             <Marker 
               key={user.uid || idx} 
               position={[user.lat, user.lng]}
-              icon={createCustomIcon(user.avatarColor)}
+              icon={createCustomIcon(user)}
             >
               <Popup className="custom-popup">
-                <div className="p-1">
-                  <div className="font-bold text-sm mb-1">{user.codename}, {user.age}</div>
-                  <div className="text-xs text-neutral-600 mb-2 truncate max-w-[150px]">{user.bio}</div>
-                  <button className="w-full bg-indigo-600 text-white text-xs font-semibold py-1.5 rounded-lg">
-                    Написати
-                  </button>
+                <div className="p-1 min-w-[140px]">
+                  <div className="flex items-center gap-2 mb-2">
+                    {user.avatarUrl ? (
+                      <img src={user.avatarUrl} className="w-8 h-8 rounded-full object-cover" />
+                    ) : (
+                      <div className={`w-8 h-8 rounded-full ${user.avatarColor} flex-shrink-0 flex items-center justify-center`}>
+                        <span className="text-white/80 text-[10px] uppercase font-bold">{user.codename.slice(0,2)}</span>
+                      </div>
+                    )}
+                    <div>
+                      <div className="font-bold text-sm leading-tight">{user.codename}, {user.age}</div>
+                      <div className="text-[10px] text-neutral-400 flex items-center gap-1 mt-0.5">
+                        <Heart size={10} className="text-rose-500" fill="currentColor" /> {user.receivedLikes || 0}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="text-xs text-neutral-300 mb-3 line-clamp-2 max-w-[150px] leading-relaxed">{user.bio}</div>
+                  
+                  <div className="flex gap-2">
+                    <button className="flex-1 bg-neutral-700 text-white text-[10px] font-bold py-1.5 rounded-lg border border-neutral-600">
+                      Чат
+                    </button>
+                    <button 
+                      onClick={() => handleSendLike(user.uid, user.receivedLikes || 0)}
+                      disabled={loadingLikeFor === user.uid}
+                      className="flex-1 bg-rose-500/20 text-rose-500 hover:bg-rose-500 hover:text-white transition-colors text-[10px] font-bold py-1.5 rounded-lg border border-rose-500/30 flex items-center justify-center gap-1"
+                    >
+                      {loadingLikeFor === user.uid ? <Loader2 size={12} className="animate-spin" /> : <> <Heart size={12} fill="currentColor" /> Лайк </>}
+                    </button>
+                  </div>
                 </div>
               </Popup>
             </Marker>
@@ -143,9 +198,10 @@ export function MapTab({ currentUser }: MapTabProps) {
           color: white;
           border-radius: 12px;
           border: 1px solid #404040;
+          box-shadow: 0 10px 25px -5px rgba(0,0,0,0.5);
         }
         .custom-popup .leaflet-popup-tip {
-          background: #262626;
+          background: #404040;
         }
         .custom-popup a.leaflet-popup-close-button {
           color: #a3a3a3;

@@ -7,9 +7,12 @@ export interface UserProfile {
   interests: string[];
   avatarColor: string;
   createdAt?: any;
-  referralsShown?: number;
-  diamondCount?: number;
-  lastDiamondClaimAt?: string;
+  receivedLikes?: number;
+  availableLikesToGive?: number;
+  lastLikeClaimAt?: string;
+  lastNameChangeAt?: string;
+  avatarUrl?: string;
+  referralsCount?: number;
   isLocationVisible?: boolean;
 }
 
