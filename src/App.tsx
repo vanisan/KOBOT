@@ -16,38 +16,47 @@ export default function App() {
   const [authError, setAuthError] = useState<string | null>(null);
 
   useEffect(() => {
+    console.log('App useEffect started');
     if (!isSupabaseConfigured) {
+      console.log('Supabase not configured');
       setAuthError('Не вказані ключі доступу до Supabase. Додайте VITE_SUPABASE_URL та VITE_SUPABASE_ANON_KEY у змінні середовища.');
       setLoadingApp(false);
       return;
     }
     const handleSession = async (sessionUser: any) => {
+      console.log('handleSession called', sessionUser?.id || 'No user');
       try {
         if (sessionUser) {
           setAuthUid(sessionUser.id);
           const { data, error } = await supabase.from('users').select('*').eq('uid', sessionUser.id).single();
+          if (error && error.code !== 'PGRST116') {
+             console.error('Fetch user error', error);
+          }
           if (data) {
             setUser(data as MapUser);
           } else {
-            setUser(null); // needs profile registration step
+            setUser(null);
           }
         } else {
           setAuthUid(null);
           setUser(null);
         }
       } catch (e: any) {
-        console.error(e);
+        console.error('handleSession error', e);
         if (e.message?.includes('Failed to fetch')) {
           setAuthError(`Не вдалося з'єднатися (Failed to fetch). Перевірте CORS у Supabase або чи працює ваш проект.`);
         } else {
           setAuthError(`Помилка: ${e.message || 'Невідома помилка'}`);
         }
       } finally {
+        console.log('handleSession finished, loadingApp set to false');
         setLoadingApp(false);
       }
     };
 
+    console.log('Checking session...');
     supabase.auth.getSession().then(({ data: { session }, error }) => {
+      console.log('getSession result', { hasSession: !!session, error });
       if (error) {
         setAuthError(`Помилка: ${error.message}`);
         setLoadingApp(false);
