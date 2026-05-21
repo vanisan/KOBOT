@@ -64,8 +64,8 @@ export default function App() {
         console.error('handleSession error', e);
         if (e.message?.includes('Failed to fetch')) {
           setAuthError(`Не вдалося з'єднатися (Failed to fetch). Перевірте CORS у Supabase або чи працює ваш проект.`);
-        } else if (e.code === 'PGRST204') {
-          setAuthError(`У вашій таблиці 'users' відсутні нові колонки (isLocationVisible та інші). Будь ласка, виконайте SQL-запит для оновлення структури бази.`);
+        } else if (e.code === 'PGRST204' || e.message?.includes('isLocationVisible')) {
+          setAuthError(`У вашій таблиці 'users' відсутні необхідні колонки. Будь ласка, перейдіть у SQL Editor у Supabase та виконайте цей запит:\n\nALTER TABLE users ADD COLUMN "isLocationVisible" boolean DEFAULT false, ADD COLUMN "diamondCount" int DEFAULT 0, ADD COLUMN "referralsShown" int DEFAULT 0, ADD COLUMN "lastDiamondClaimAt" text, ADD COLUMN "lat" float, ADD COLUMN "lng" float;`);
         } else {
           setAuthError(`Помилка: ${e.message || 'Невідома помилка'}`);
         }
